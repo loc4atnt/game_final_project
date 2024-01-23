@@ -6,6 +6,8 @@ using System.Text;
 
 public class PuppetAvatar : MonoBehaviour
 {
+    private GameManager gameManager;
+
     public TrackerHandler KinectDevice;
     Dictionary<JointId, Quaternion> absoluteOffsetMap;
     Animator PuppetAnimator;
@@ -44,6 +46,9 @@ public class PuppetAvatar : MonoBehaviour
     }
     private void Start()
     {
+        GameObject gameManagerObj = GameObject.Find("GameManager");
+        gameManager = gameManagerObj.GetComponent<GameManager>();
+
         PuppetAnimator = GetComponent<Animator>();
         Transform _rootJointTransform = CharacterRootTransform;
         

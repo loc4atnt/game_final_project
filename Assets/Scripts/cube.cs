@@ -4,12 +4,20 @@ using UnityEngine;
 
 public class cube : MonoBehaviour
 {
+    private GameManager gameManager;
+
     public GameObject obj;
     public Material inEffect;
     Material dafaultEffect;
+
+    public int index;
+
     // Start is called before the first frame update
     void Start()
     {
+        GameObject gameManagerObj = GameObject.Find("GameManager");
+        gameManager = gameManagerObj.GetComponent<GameManager>();
+
         dafaultEffect = GetComponent<MeshRenderer>().material;
     }
 
@@ -21,14 +29,22 @@ public class cube : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        print("INN");
-        GetComponent<MeshRenderer>().material = inEffect;
+        if (other.tag == "hand" || other.tag == "foot")
+        {
+            print("INN");
+            GetComponent<MeshRenderer>().material = inEffect;
+            gameManager.toggleState(index, true);
+        }
     }
 
     private void OnTriggerExit(Collider other)
     {
-        print("OUTTT");
-        GetComponent<MeshRenderer>().material = dafaultEffect;
+        if (other.tag == "hand" || other.tag == "foot")
+        {
+            print("OUTTT");
+            GetComponent<MeshRenderer>().material = dafaultEffect;
+            gameManager.toggleState(index, false);
+        }
     }
 
     private void OnCollisionStay(Collision collision)

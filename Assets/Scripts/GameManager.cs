@@ -127,7 +127,6 @@ public class GameManager : MonoBehaviour
     {
         GameObject currentSampleStateObj = GameObject.Find("CurrentSampleState");
         this.currentStateCtrller = currentSampleStateObj.GetComponent<SampleStateIKController>();
-
         startGame();
     }
 

@@ -32,7 +32,7 @@ public class cube : MonoBehaviour
         if (other.tag == "hand" || other.tag == "foot")
         {
             print("INN");
-            GetComponent<MeshRenderer>().material = inEffect;
+            //GetComponent<MeshRenderer>().material = inEffect;
             gameManager.toggleState(index, true);
         }
     }
@@ -42,7 +42,7 @@ public class cube : MonoBehaviour
         if (other.tag == "hand" || other.tag == "foot")
         {
             print("OUTTT");
-            GetComponent<MeshRenderer>().material = dafaultEffect;
+            //GetComponent<MeshRenderer>().material = dafaultEffect;
             gameManager.toggleState(index, false);
         }
     }

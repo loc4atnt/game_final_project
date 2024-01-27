@@ -1,18 +1,40 @@
 ﻿
 using System;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
     public static int STATE_DELAY = 80000;
+    public static int DELAY_TIME = 5000;
+    public static int MAX_PLAY_TIME = 60000;
     //
     public static int GAME_STAGE_NOT_START = 0;
     public static int GAME_STAGE_PLAYING = 5;
     public static int GAME_STAGE_PRE_TO_END = 10;
     public static int GAME_STAGE_END = 15;
+    public static int GAME_STAGE_PICK_SONG = 20;
 
     public static int GAME_STATE_PREPARE_TO_NEXT_MOVEMENT = 0;
     public static int GAME_STATE_PLAYING = 1;
+    public static int GAME_STATE_FREE_DANCE = 2;
+
+    public GameObject kinectModel;
+    public GameObject danceModel;
+    public AudioManager audioManager;
+    public Text comboCount;
+    public UISprite comboEffect;
+    public Camera mainCam;
+    public Camera subCam;
+    public GameObject menuPanel;
+    public GameObject comboPanel;
+    public GameObject[] hitboxes;
+    public Text timer;
+    public GameObject missed;
+    public GameObject success;
+    public long startTime;
+    public ScoreBoard scoreBoard;
+    public GameObject readyPopup;
 
     private int currentState = 0b00000000;
 
@@ -28,9 +50,34 @@ public class GameManager : MonoBehaviour
 
     private long lastChangeStateAnimationTS;
 
+    int totalCombo = 0;
+    int continuousCombo = 0;
+    int missedCnt = 0;
+    int maxCombo = 0;
+    bool failCombo = false;
+    long specialStageTime = 0;
+    long lastSuccessTime = -1;
+    bool doneReady;
+    Vector3 mainCamPos;
+    Vector3 mainCamRot;
+
     public int getCurrentRequestState()
     {
         return nextStates[0];
+    }
+
+    public void pickSong(int id)
+    {
+        gameStage = GAME_STAGE_PLAYING;
+        startTime = now();
+        audioManager.play(id);
+        comboPanel.SetActive(true);
+        menuPanel.SetActive(false);
+        timer.gameObject.SetActive(true);
+        long tempTime = now();
+
+        readyPopup.SetActive(true);
+        doneReady = false;
     }
 
     private long now()
@@ -112,8 +159,10 @@ public class GameManager : MonoBehaviour
     {
         for (int i = 0; i < nextStates.Length; i++) nextStates[i] = genRandState();
         lastChangeStateTs = now();
-        gameStage = GAME_STAGE_PLAYING;
+        gameStage = GAME_STAGE_PICK_SONG;
         score = 0;
+        missedCnt = 0;
+        maxCombo = 0;
     }
 
     // Please call this method before the song ending 4*STATE_DELAY seconds
@@ -125,6 +174,9 @@ public class GameManager : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        lastSuccessTime = now();
+        mainCamRot = new Vector3(mainCam.transform.rotation.x, mainCam.transform.rotation.y, mainCam.transform.rotation.z);
+        mainCamPos = new Vector3(mainCam.transform.position.x, mainCam.transform.position.y, mainCam.transform.position.z);
         GameObject currentSampleStateObj = GameObject.Find("CurrentSampleState");
         this.currentStateCtrller = currentSampleStateObj.GetComponent<SampleStateIKController>();
         startGame();
@@ -150,11 +202,74 @@ public class GameManager : MonoBehaviour
 
     }
 
+    void updateCombo(int value)
+    {
+        comboCount.text = value.ToString();
+        comboEffect.playAnimationOnce();
+    }
     // Update is called once per frame
     void Update()
     {
+        if (gameStage == GAME_STAGE_PICK_SONG)
+        {
+            return;
+        }
+
         if (gameStage == GAME_STAGE_PLAYING || gameStage == GAME_STAGE_PRE_TO_END)
         {
+            if (now() - startTime < 2000)
+            {
+                return;
+            } else if (!doneReady)
+            {
+                readyPopup.SetActive(false);
+                lastSuccessTime = now();
+                doneReady = true;
+            }
+            if (continuousCombo == 5)
+            {
+                success.SetActive(true);
+                //kinectModel.SetActive(false);
+                danceModel.SetActive(true);
+                score += 3;
+                //for (int i = 0; i < hitboxes.Length; ++i)
+                    //hitboxes[i].SetActive(false);
+                danceModel.gameObject.GetComponent<Animator>().SetInteger("danceMode", rd.Next(1,5));
+
+
+                if (now() - specialStageTime < 5000)
+                    return;
+                continuousCombo = 0;
+                danceModel.SetActive(false);
+                //kinectModel.SetActive(true);
+
+                //mainCam.transform.position = new Vector3(mainCamPos.x, mainCamPos.y, mainCamPos.z);
+                mainCam.transform.Rotate(new Vector3(0f, -180f, 0f));
+                //for (int i = 0; i < hitboxes.Length; ++i)
+                    //hitboxes[i].SetActive(true);
+                lastSuccessTime = now();
+                
+            }
+
+            long tempTime = now();
+            if (tempTime - lastSuccessTime > DELAY_TIME)
+            {
+                print("MISSSS");
+                continuousCombo = 0;
+                totalCombo = 0;
+                updateCombo(totalCombo);
+                CallGotState();
+                pushNextState(gameStage == GAME_STAGE_PLAYING);
+                lastSuccessTime = now();
+                sendStateToSampleController(getCurrentRequestState(), this.currentStateCtrller);
+                missed.SetActive(true);
+                ++missedCnt;
+                return;
+            } else
+            {
+                timer.text = ((DELAY_TIME * 1f - (tempTime - lastSuccessTime)) / 1000f).ToString() + "s";
+            }
+
             if (gameState == GAME_STATE_PREPARE_TO_NEXT_MOVEMENT)
             {
                 if (now() - lastChangeStateAnimationTS > 500)
@@ -166,8 +281,6 @@ public class GameManager : MonoBehaviour
             }
             else if (gameState == GAME_STATE_PLAYING)
             {
-                // print(state);
-                // print("" + nextStates[0] + " - " + nextStates[1] + " - " + nextStates[2] + " - " + nextStates[3]);
                 long ts = now();
                 int curReqState = getCurrentRequestState();
 
@@ -190,23 +303,38 @@ public class GameManager : MonoBehaviour
                     {
                         if (curReqState == currentState)
                         {
+                            lastSuccessTime = now();
                             CallGotState();
                             this.score += 1;
-
                             pushNextState(gameStage == GAME_STAGE_PLAYING);
                             lastChangeStateTs = ts;
-                        }
-                        else
-                        {
-                            // CallFailedState();
+                            ++continuousCombo;
+                            ++totalCombo;
+                            if (totalCombo > maxCombo)
+                                maxCombo = totalCombo;
+                            specialStageTime = now();
+                            updateCombo(totalCombo);
+                            
+                            if (continuousCombo == 5)
+                            {
+                                mainCam.transform.Rotate(new Vector3(0f, 180f, 0f));
+                            }
                         }
                     }
                 }
-
-                // show current next states
-                print(curReqState + " - " + currentState + " [" + score + "]");
                 sendStateToSampleController(curReqState, this.currentStateCtrller);
             }
+
+            if (!audioManager.isPlaying() || now() - startTime > 60000)
+            {
+                gameStage = GAME_STAGE_PICK_SONG;
+                totalCombo = 0;
+                continuousCombo = 0;
+                scoreBoard.setData(score, maxCombo, missedCnt);
+                scoreBoard.gameObject.SetActive(true);
+                audioManager.stopAudio();
+            }
         }
+        else print("stopped");
     }
 }
